@@ -150,6 +150,7 @@
         truncateString: '&hellip;',
         truncateLocation: 'end', // 'start', 'middle', 'end'
         truncateOnlyWholeWords: false,
+        truncateWithTitle: true,
         
         extraOptimizeLimit: 8
     };
@@ -159,11 +160,12 @@
     
     // Private instance and methods
     var pluginInstance = function($target, options, $targetGroup) {
-        var createRenderState = function(content, fontSize, letterSpacing) {
+        var createRenderState = function(content, fontSize, letterSpacing, title) {
             return {
                 content: content,
                 fontSize: fontSize,
-                letterSpacing: letterSpacing  
+                letterSpacing: letterSpacing,
+                title: title
             };
         };
         
@@ -177,11 +179,12 @@
 
                 // These values represent the current retained state for the duration of the refresh
                 var text = this.contentHtml;
+                var titleText = "";
                 var fontSize = this.options.maximumFontSize;
                 var letterSpacing = this.options.maximumLetterSpacing;
                 
                 var renderFunc = function() {
-                    var state = createRenderState(text, fontSize, letterSpacing);
+                    var state = createRenderState(text, fontSize, letterSpacing, titleText);
                     self.renderState(state);
                 }
                 
@@ -208,7 +211,10 @@
                         optimize(0.0, 1.0, function(value) {
                             truncationLevel = value;
                             
+                            var oldText = text;
                             text = getTruncatedHtml(view, self.options.truncateString, self.options.truncateLocation, value, true);
+                            if (self.options.truncateWithTitle && (text != oldText) && !titleText)
+                                titleText = oldText;
                             
                             // Nested letter spacing O P T I M I Z A T I O N
                             optimize(self.options.minimumLetterSpacing, 0.0, function(value) {
@@ -236,14 +242,17 @@
                 // Final truncation
                 if (this.options.truncate) {
                     optimize(0.0, 1.0, function(value) {
+                        var oldText = text;
                         text = getTruncatedHtml(view, self.options.truncateString, self.options.truncateLocation, value, self.options.truncateOnlyWholeWords);
+                        if (self.options.truncateWithTitle && (text != oldText) && !titleText)
+                            titleText = oldText;
                         renderFunc();
                     },
                     overflowFunc, this.options.extraOptimizeLimit);
                 }
                 
                 // One last render in the event that no optimization attempt was made
-                this.renderState(createRenderState(text, fontSize, letterSpacing), !this.options.truncate);
+                this.renderState(createRenderState(text, fontSize, letterSpacing, titleText), !this.options.truncate);
                 
                 this.currentOptimalState = this.currentRenderedState;
                 
@@ -280,6 +289,7 @@
                 var self = this;
                 var view = createHtmlTextView(this.contentHtml);
                 var text = this.contentHtml;
+                var titleText = "";
                 
                 if (this.currentOptimalState != null)
                 {
@@ -293,7 +303,7 @@
                 }
                 
                 var renderFunc = function() {
-                    self.renderState(createRenderState(text, fontSize, letterSpacing));
+                    self.renderState(createRenderState(text, fontSize, letterSpacing, titleText));
                 }
                 
                 var overflowFunc = function() {
@@ -303,13 +313,16 @@
                 // Perform truncation
                 if (this.options.truncate) {
                     optimize(0.0, 1.0, function(value) {
+                        var oldText = text;
                         text = getTruncatedHtml(view, self.options.truncateString, self.options.truncateLocation, value, self.options.truncateOnlyWholeWords);
+                        if (self.options.truncateWithTitle && (text != oldText) && !titleText)
+                            titleText = oldText;
                         renderFunc();
                     },
                     overflowFunc);
                 }
 
-                this.renderState(createRenderState(text, fontSize, letterSpacing), !this.options.truncate);
+                this.renderState(createRenderState(text, fontSize, letterSpacing, titleText), !this.options.truncate);
             },
             init: function() {
                 this.contentHtml = this.target.html();
@@ -338,6 +351,11 @@
                 
                 var whiteSpace = (!forceAllowWrap && this.options.fitDirection == 'horizontal') ? 'nowrap' : 'normal';
                 this.settingsWrapper.css('white-space', whiteSpace);
+
+                if (state.title)
+                    this.settingsWrapper.attr('title', state.title);
+                else
+                    this.settingsWrapper.removeAttr('title');
 
                 this.settingsWrapper.empty();
                 this.settingsWrapper.append(state.content);
